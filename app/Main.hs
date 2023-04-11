@@ -3,6 +3,7 @@
 module Main where
 
 import Data.List ( delete, nub, sort )
+import System.Environment ( getArgs )
 import qualified Data.Set as SET
 import qualified Data.Tree as VT
 import qualified Data.Tree.Pretty as PT
@@ -114,18 +115,29 @@ allDnTs2 g@(cp, np) =
 -- FML, so it wasn't the attacks and the divisions and transfers functions
 -- the infinite looping still exists        
 
-plsWork :: Int -> GameState -> IO (Int, [GameState])
-plsWork times g = do
-    let allMoves = nub $ allAttacks2 g ++ allDnTs2 g
-    print allMoves
-    if times == 0 then return (9001, allMoves) else return (times - 1, allMoves)
-    -- its over 9000!!!!
+-- nvm it's not infinite looping, the state space is just huge
+
+-- lets count what the number of reachable states are
+-- at every level
+
+countGameStateLevel :: [GameState] -> Int -> (Int, [GameState], Int)
+countGameStateLevel gs times = do
+    -- runs allPossibleMoves on given list of gamestates and returns the count of them
+    let allPoss = concatMap possibleGameStates gs in (length allPoss, allPoss, times+1)
+
+countGameState :: Int -> [GameState] -> Int -> Int -> IO Int
+countGameState t0 gs uptoLevel totGameStates = do
+    let (nGameStates, newGS, t) = countGameStateLevel gs t0
+    if t >= uptoLevel 
+        then return totGameStates
+        else countGameState t newGS uptoLevel (totGameStates+nGameStates)
+
 
 main :: IO ()
 main = do
-    res <- plsWork 10 ([1,1], [1,1])
+    let initGS = [([1,1],[1,1])]
+    putStrLn "Enter the number of levels you want explored in the Decision Tree"
+    r <- getLine
+    let ri = read r :: Int
+    res <- countGameState 0 initGS ri 0
     print res
-
--- keep track of index of list being changed (a?)
--- keep track of state (s = (List being modified, value it is being modified with))
--- 
