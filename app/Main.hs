@@ -51,7 +51,7 @@ dntHelper hands = [(h-taken) : (h1+taken) : delete h (delete h1 hands) |
 createDecisionTree :: SET.Set GameState -> GameState -> DecisionTree GameState
 createDecisionTree s gs@(cp,np) 
     | all0 cp || all0 np || SET.member gs s = DecisionTree gs []
-    | otherwise              = DecisionTree gs (map (createDecisionTree (SET.insert gs s))  (possibleGameStates gs))
+    | otherwise                             = DecisionTree gs (map (createDecisionTree (SET.insert gs s))  (possibleGameStates gs))
 -- keeps on running
 -- to investigate, convert DecisionTree to Vanilla Rose Tree from the Data.Tree package 
 -- this is so we can use prettyPrint functions to see wtf is going on
@@ -131,7 +131,6 @@ countGameState t0 gs uptoLevel totGameStates = do
     if t >= uptoLevel 
         then return totGameStates
         else countGameState t newGS uptoLevel (totGameStates+nGameStates)
-
 
 main :: IO ()
 main = do
