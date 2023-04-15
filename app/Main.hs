@@ -7,6 +7,7 @@ import System.Environment ( getArgs )
 import qualified Data.Set as SET
 import qualified Data.Tree as VT
 import qualified Data.Tree.Pretty as PT
+import Data.Fixed (Deci)
 
 type Player    = [Int] -- each int represents the number of fingers up in each hand, and we're allowed to have multiple hands
 -- should be sorted
@@ -56,6 +57,27 @@ createDecisionTree s gs@(cp,np)
 -- to investigate, convert DecisionTree to Vanilla Rose Tree from the Data.Tree package 
 -- this is so we can use prettyPrint functions to see wtf is going on
 
+-- okay, so one way to improve createDecisionTree is by changing the map to a fold such that every subsequent state gets access to
+-- the previous state at the same level through the set
+-- currently, all states in a level get the same set and this means there's lots of repeated work
+
+foldingGameState :: SET.Set GameState -> [GameState] -> [DecisionTree GameState]
+foldingGameState s gs = fst $ foldr next ([], s) gs
+    where
+        next :: GameState -> ([DecisionTree GameState], SET.Set GameState) -> ([DecisionTree GameState], SET.Set GameState)
+        next g prevB@(x, y) 
+            | SET.member g y = prevB
+            | otherwise      = (DecisionTree g (foldingGameState (SET.union y (SET.fromList (possibleGameStates g))) (possibleGameStates g)) : x, SET.union y (SET.fromList (possibleGameStates g)))
+-- my b is going to be ([DecisionTree GameState], SET.Set GameState)
+-- my initial default value is going to be ([], Initial Set)
+-- what is my "next" function going to be?
+-- next :: GameState -> ([DecisionTree GameState], SET.Set GameState)
+
+createDecisionTree2 :: SET.Set GameState -> GameState -> DecisionTree GameState
+createDecisionTree2 s gs@(cp, np)
+    | all0 cp || all0 np || SET.member gs s = DecisionTree gs []
+    | otherwise                             = DecisionTree gs (foldingGameState s (possibleGameStates gs))
+
 
 theTree :: DecisionTree GameState
 theTree = createDecisionTree SET.empty ([1,1], [1,1])
@@ -64,6 +86,9 @@ theActualTree :: Int -> DecisionTree GameState -> VT.Tree String
 theActualTree _ (DecisionTree x []) = VT.Node (show x) []
 theActualTree 0 (DecisionTree x xs) = VT.Node (show x) []
 theActualTree h (DecisionTree x xs) = VT.Node (show x) (map (theActualTree (h-1)) xs)
+
+countActualTree :: VT.Tree String -> Int
+countActualTree (VT.Node _ xs) = 1 + sum (map countActualTree xs)
 
 forPrinting = PT.drawVerticalTree $ theActualTree 9 theTree -- even with this it still continues printing, therefore the error is related to not depth, but one 
                                        -- of the levels of the DecisionTree having a list that keeps on mutating producing a tree of infinite breadth
