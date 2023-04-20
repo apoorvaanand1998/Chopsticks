@@ -61,26 +61,40 @@ createDecisionTree s gs@(cp,np)
 -- the previous state at the same level through the set
 -- currently, all states in a level get the same set and this means there's lots of repeated work
 
-foldingGameState :: SET.Set GameState -> [GameState] -> [DecisionTree GameState]
-foldingGameState s gs = fst $ foldr next ([], s) gs
-    where
-        next :: GameState -> ([DecisionTree GameState], SET.Set GameState) -> ([DecisionTree GameState], SET.Set GameState)
-        next g prevB@(x, y) 
-            | SET.member g y = prevB
-            | otherwise      = (DecisionTree g (foldingGameState (SET.union y (SET.fromList (possibleGameStates g))) (possibleGameStates g)) : x, SET.union y (SET.fromList (possibleGameStates g)))
--- my b is going to be ([DecisionTree GameState], SET.Set GameState)
--- my initial default value is going to be ([], Initial Set)
--- what is my "next" function going to be?
--- next :: GameState -> ([DecisionTree GameState], SET.Set GameState)
+uniqueGameStates :: SET.Set GameState -> GameState -> ([GameState], SET.Set GameState)
+uniqueGameStates alreadyExplored g = 
+    let
+        allPossFiltered = filter (\x -> not (SET.member x alreadyExplored)) $ possibleGameStates g
+        newSet          = SET.union (SET.fromList (g : allPossFiltered)) alreadyExplored
+    in
+        (allPossFiltered, newSet)
+
+oneLayer :: SET.Set GameState -> [GameState] -> ([[GameState]], SET.Set GameState)
+oneLayer s []       = ([[]], s)
+oneLayer s (g : gs) =
+    let
+        (iRes, newSet) = uniqueGameStates s g
+    in
+        (iRes : fst (oneLayer newSet gs), newSet)
+
+inEndState :: GameState -> Bool
+inEndState (cp, np) = all0 cp || all0 np
 
 createDecisionTree2 :: SET.Set GameState -> GameState -> DecisionTree GameState
-createDecisionTree2 s gs@(cp, np)
-    | all0 cp || all0 np || SET.member gs s = DecisionTree gs []
-    | otherwise                             = DecisionTree gs (foldingGameState s (possibleGameStates gs))
-
+createDecisionTree2 s g
+    | inEndState g = DecisionTree g []
+    | otherwise    = 
+        let
+            root = DecisionTree g
+            (one, oneSet) = uniqueGameStates s g
+            (two, twoSet) = oneLayer oneSet one
+            mapOne        = map DecisionTree one
+            mapTwo        = (fmap . fmap) DecisionTree two
+        in
+            undefined
 
 theTree :: DecisionTree GameState
-theTree = createDecisionTree SET.empty ([1,1], [1,1])
+theTree = createDecisionTree2 SET.empty ([1,1], [1,1])
 
 theActualTree :: Int -> DecisionTree GameState -> VT.Tree String
 theActualTree _ (DecisionTree x []) = VT.Node (show x) []
