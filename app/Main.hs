@@ -7,13 +7,14 @@ import System.Environment ( getArgs )
 import qualified Data.Set as SET
 import qualified Data.Tree as VT
 import qualified Data.Tree.Pretty as PT
-import Data.Fixed (Deci)
 
 type Player    = [Int] -- each int represents the number of fingers up in each hand, and we're allowed to have multiple hands
 -- should be sorted
 type GameState = (Player, Player) -- fst is currently playing player and snd is player who will play next
 
 data DecisionTree a = DecisionTree a [DecisionTree a] deriving Show -- 'a' holds GameState
+
+type NDGameState = [GameState]
 
 possibleGameStates :: GameState -> [GameState]
 possibleGameStates g = 
@@ -69,42 +70,44 @@ uniqueGameStates alreadyExplored g =
     in
         (allPossFiltered, newSet)
 
-oneLayer :: SET.Set GameState -> [GameState] -> ([[GameState]], SET.Set GameState)
-oneLayer s []       = ([[]], s)
+oneLayer :: SET.Set GameState -> NDGameState -> ([NDGameState], SET.Set GameState) -- aka the "next" function for unfoldTree
+oneLayer s []       = ([[]], s) -- this specifies inEndState
 oneLayer s (g : gs) =
     let
         (iRes, newSet) = uniqueGameStates s g
     in
         (iRes : fst (oneLayer newSet gs), newSet)
 
-inEndState :: GameState -> Bool
-inEndState (cp, np) = all0 cp || all0 np
+unfoldTree :: (b -> (a, [b])) -> b -> DecisionTree a
+unfoldTree f b = let (a, bs) = f b in DecisionTree a (unfoldForest f bs)
 
-createDecisionTree2 :: SET.Set GameState -> GameState -> DecisionTree GameState
-createDecisionTree2 s g
-    | inEndState g = DecisionTree g []
-    | otherwise    = 
-        let
-            root = DecisionTree g
-            (one, oneSet) = uniqueGameStates s g
-            (two, twoSet) = oneLayer oneSet one
-            mapOne        = map DecisionTree one
-            mapTwo        = (fmap . fmap) DecisionTree two
-        in
-            undefined
+unfoldForest :: (b -> (a, [b])) -> [b] -> [DecisionTree a]
+unfoldForest f = map (unfoldTree f)
 
-theTree :: DecisionTree GameState
-theTree = createDecisionTree2 SET.empty ([1,1], [1,1])
+createDecisionTree2 :: NDGameState -> DecisionTree NDGameState
+createDecisionTree2 = unfoldTree f
+    where
+        f :: NDGameState -> (NDGameState, [NDGameState])
+        f start = 
+            let
+                (ndgs, updSet) = oneLayer SET.empty start
+            in
+                (start, ndgs)
 
-theActualTree :: Int -> DecisionTree GameState -> VT.Tree String
+theTree :: DecisionTree NDGameState
+theTree = createDecisionTree2 [([1,1], [1,1])]
+
+theActualTree :: Int -> DecisionTree NDGameState -> VT.Tree String
 theActualTree _ (DecisionTree x []) = VT.Node (show x) []
 theActualTree 0 (DecisionTree x xs) = VT.Node (show x) []
 theActualTree h (DecisionTree x xs) = VT.Node (show x) (map (theActualTree (h-1)) xs)
 
+-- gotta rewrite this, by making use of updSet
 countActualTree :: VT.Tree String -> Int
 countActualTree (VT.Node _ xs) = 1 + sum (map countActualTree xs)
 
-forPrinting = PT.drawVerticalTree $ theActualTree 9 theTree -- even with this it still continues printing, therefore the error is related to not depth, but one 
+forPrinting :: String
+forPrinting = PT.drawVerticalTree $ theActualTree 3 theTree -- even with this it still continues printing, therefore the error is related to not depth, but one 
                                        -- of the levels of the DecisionTree having a list that keeps on mutating producing a tree of infinite breadth
 
 -- okay, the code for what is happening in the list comprehensions is complicated
